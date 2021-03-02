@@ -1,4 +1,6 @@
 import json
+from os import O_TRUNC
+from sys import prefix
 
 import cv2
 import math
@@ -363,7 +365,8 @@ class CorrelationModel(nn.Module):
         x = torch.cat([dot_conv, sub_conv, dot_conv3x3], dim=1)
         x2 = self.nf(F.elu(self.cf(x)))
         
-        if not test:
+        # if not test:
+        if True:
 
             # Heatmap
             out = self.corr_conv_heatmap(x2)
@@ -421,10 +424,6 @@ class Network(NetworkBase):
         self.regressBoxes = BBoxTransform()
         self.clipBoxes = ClipBoxes()
 
-
-
-
-
     def freeze_bn(self):
         '''Freeze BatchNorm layers.'''
         for layer in self.modules():
@@ -465,11 +464,11 @@ class Network(NetworkBase):
 
             class_outputs = []
             reg_outputs = []
+            seg_outputs = []
 
             # calculate backbone features only once
             template_batch_global = template_features_global[0]
             features = self.image_feature_extractor(image, template_batch_global)
-
 
             # Accumulate detections for all local templates
             for i in range(len(template_features)):
@@ -479,7 +478,7 @@ class Network(NetworkBase):
                 batch_size = template_batch_local.size(0)
                 feat_size = features.size()
                 features_expand = features.expand([batch_size, feat_size[1], feat_size[2], feat_size[3]])
-                xcors_feature, _, _ = self.correlation_model(features_expand, template_batch_local, True)
+                xcors_feature, _, seg = self.correlation_model(features_expand, template_batch_local, True)
 
                 #stage 2 - detections
                 anchors = self.anchors([[xcors_feature.size(2), xcors_feature.size(3)]])
@@ -489,10 +488,11 @@ class Network(NetworkBase):
                 if i == 0:
                     class_outputs = classifications
                     reg_outputs = regression
+                    seg_outputs = seg
                 else:
                     class_outputs = torch.cat([class_outputs, classifications], dim=0)
                     reg_outputs = torch.cat([reg_outputs, regression], dim=0)
-
+                    seg_outputs = torch.cat([seg_outputs, seg], dim=0)
 
             # Keep information about which template is responsible for which predictions
             s = reg_outputs.size()
@@ -507,11 +507,12 @@ class Network(NetworkBase):
             transformed_anchors = self.regressBoxes(anchors, reg_outputs)
             transformed_anchors = self.clipBoxes(transformed_anchors, image)
 
+            # Resize the prediction and collapse the dimension of number of templates
             classifications = class_outputs.contiguous().view(1, -1, 2)
             regression = reg_outputs.contiguous().view(1, -1, 2)
             transformed_anchors = transformed_anchors.view(1, -1, 4)
             obj_indices = obj_indices.contiguous().view(1, -1, 1)
-
+            segmentation = seg_outputs.contiguous().view(1, -1, seg_outputs.shape[-2], seg_outputs.shape[-1])
 
             # Keep Top 1000
             maxes = torch.topk(classifications, 1000, dim=1)
@@ -533,8 +534,9 @@ class Network(NetworkBase):
             anchors_pred = anchors_pred[:topk]
             obj_indices = obj_indices[:topk]
 
+            seg_pred = segmentation[0, obj_indices.reshape(-1).long()]
 
-            return [max_score, anchors_pred, obj_indices]
+            return [max_score, anchors_pred, obj_indices, seg_pred]
 
 
 
