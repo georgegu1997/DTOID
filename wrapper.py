@@ -18,8 +18,10 @@ __filedir__ = os.path.dirname(os.path.realpath(__file__))
 network_module = SourceFileLoader(".", os.path.join(__filedir__, "network.py")).load_module()
 
 
-def DTOIDWrapper(nn.Module):
+class DTOIDWrapper(nn.Module):
     def __init__(self, backend="cuda", no_filter_z=False):
+        super(DTOIDWrapper, self).__init__()
+
         # Initialize the network
         model = network_module.Network()
         model.eval()
@@ -37,10 +39,17 @@ def DTOIDWrapper(nn.Module):
         self.model_directory = os.path.join(__filedir__, "templates")
         self.template_cache = {}
 
+    def clearCache(self):
+        del self.template_cache
+        self.template_cache = {}
+
     def getTemplates(self, linemod_model):
         '''
         linemod_model: str of the linemod object ID ("01", "02", ...)
         '''
+        if linemod_model in self.template_cache:
+            return
+        
         assert type(linemod_model) is str
 
         model_name = "hinterstoisser_" + linemod_model
