@@ -13,12 +13,17 @@ from tqdm import tqdm
 os.chdir("/home/qiaog/src/DTOID/")
 from wrapper import DTOIDWrapper
 
-def main():
+def getParser():
+    parser = argparse.ArgumentParser(description='Arguments for Testing')
+    parser.add_argument("--dataset_name", default="lm", choices=['lm', 'lmo'])
+    return parser
+
+def main(args_cmd):
     model = DTOIDWrapper()
 
     args = Namespace()
     args.bop_root = "/home/qiaog/datasets/bop/"
-    args.dataset_name = "lm"
+    args.dataset_name = args_cmd.dataset_name
     args.model_type = None
     args.split_name = "bop_test"
     args.split = "test"
@@ -26,6 +31,7 @@ def main():
     args.skip = 1
 
     dataset = BopDataset(args)
+    dataset.targets.sort(key = lambda x: x['obj_id'])
 
     obj_ids_str = ["%02d" % _  for _ in dataset.obj_ids]
     print("len(dataset):", len(dataset))
@@ -98,4 +104,6 @@ def main():
     json.dump(results, open("test_result_%s_%s.json" % (args.dataset_name, args.split_name), "w"), indent="  ")
 
 if __name__ == "__main__":
-    main()
+    parser = getParser()
+    args = parser.parse_args()
+    main(args)
