@@ -18,6 +18,12 @@ def getParser():
     parser.add_argument("--dataset_name", default="lm", choices=['lm', 'lmo'])
     return parser
 
+def computeIoU(mask, gt_mask):
+    if gt_mask.sum() == 0 and mask.sum() == 0:
+        return 1
+    else:
+        return np.logical_and(mask, gt_mask).sum() / float(np.logical_or(mask, gt_mask).sum())
+
 def main(args_cmd):
     model = DTOIDWrapper()
 
@@ -55,13 +61,16 @@ def main(args_cmd):
                 
             if last_id != obj_id_str:
                 model.clearCache()
+                last_id = obj_id_str
             model.getTemplates(obj_id_str)
 
             out = model(img_numpy, obj_id_str)
+            
             pred_seg = out['pred_seg_np'][0]
-            pred_bbox_np = out['pred_bbox_np'][0]
-            pred_scores_np = out['pred_scores_np'][0]
-            network_w, network_h, img_w, img_h = out['network_w'], out['network_h'], out['img_w'], out['img_h']
+
+            # pred_bbox_np = out['pred_bbox_np'][0]
+            # pred_scores_np = out['pred_scores_np'][0]
+            # network_w, network_h, img_w, img_h = out['network_w'], out['network_h'], out['img_w'], out['img_h']
 
             # x1, y1, x2, y2 = pred_bbox_np
             # temp_score = pred_scores_np
@@ -83,8 +92,10 @@ def main(args_cmd):
             # )
             # plt.show()
 
-            IoU = np.logical_and(mask_gt > 0, pred_seg > 0).sum() / np.logical_or(mask_gt > 0, pred_seg > 0).sum()
-            IoU_visible = np.logical_and(mask_gt_visib > 0, pred_seg > 0).sum() / np.logical_or(mask_gt_visib > 0, pred_seg > 0).sum()
+            # IoU = np.logical_and(mask_gt > 0, pred_seg > 0).sum() / np.logical_or(mask_gt > 0, pred_seg > 0).sum()
+            # IoU_visible = np.logical_and(mask_gt_visib > 0, pred_seg > 0).sum() / np.logical_or(mask_gt_visib > 0, pred_seg > 0).sum()
+            IoU = computeIoU(pred_seg > 0, mask_gt > 0)
+            IoU_visible = computeIoU(pred_seg > 0, mask_gt_visib > 0)
 
             results.append({
                 "obj_id": obj_id, 
